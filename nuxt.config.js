@@ -48,14 +48,15 @@ export default {
   */
   buildModules: [
     // Doc: https://github.com/nuxt-community/eslint-module
-    '@nuxtjs/eslint-module'
+    // '@nuxtjs/eslint-module'
   ],
   /*
   ** Nuxt.js modules
   */
   modules: [
     // Doc: https://axios.nuxtjs.org/usage
-    '@nuxtjs/axios'
+    '@nuxtjs/axios',
+    '@nuxtjs/proxy'
   ],
   /*
   ** Axios module configuration
@@ -68,5 +69,14 @@ export default {
   */
   build: {
     transpile: [/^element-ui/]
+  },
+  proxy: {
+    '/api': {
+      target: 'http://localhost:7001',
+      secure: false,
+      pathRewrite: {
+        '^/api': ''
+      }
+    }
   }
 }
