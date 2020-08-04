@@ -13,14 +13,21 @@
         <el-input v-model="form.captcha" placeholder="请输入验证码"></el-input>
       </el-form-item>
 
+      <el-form-item prop="nickname" label="昵称">
+        <el-input v-model="form.nickname" placeholder="请输入昵称"></el-input>
+      </el-form-item>
+
       <el-form-item prop="passwd" label="密码">
         <el-input type="password" v-model="form.passwd" placeholder="请输入密码"></el-input>
       </el-form-item>
 
+      <el-form-item prop="repasswd" label="确认密码">
+        <el-input type="password" v-model="form.repasswd" placeholder="请再次输入密码"></el-input>
+      </el-form-item>
 
       <el-form-item label=" ">
         <!-- <button @clikc.prevent></button> -->
-        <el-button type="primary" @click.native.prevent="handleRegister">登录</el-button>
+        <el-button type="primary" @click.native.prevent="handleRegister">注册</el-button>
       </el-form-item>
     </el-form>
   </div>
@@ -42,6 +49,7 @@ export default {
         email: '316783812@qq.com',
         passwd: 'a316783812',
         repasswd: 'a316783812',
+        nickname: '董爱疯',
         captcha: ''
       },
       rules: {
