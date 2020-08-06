@@ -1,6 +1,6 @@
 <template>
   <div>
-    <h1>登录</h1>
+    <h3 style="text-align: center; margin: 20px;width: 100%;">欢迎来到这里</h3>
     <Nuxt />
   </div>
 </template>

@@ -28,7 +28,12 @@
 </template>
 
 <script>
-export default {}
+export default {
+  async mounted() {
+    const res = this.$http.get('/user/info')
+    console.log(res)
+  }
+}
 </script>
 
 <style>
