@@ -14,19 +14,29 @@
      </div>
      <div>
        <el-button @click="uploadFile">上传</el-button>
+
      </div>
+
+      <p>计算hash进度</p>
+     <el-progress
+      :stroke-width="20"
+      :text-inside="true"
+      :percentage="hashProgress"
+      />
     </div>
   </div>
 </template>
 
 <script>
+const CHUNK_SIZE = 0.5 * 1024 * 1024
 export default {
  
   data() {
     return {
       form: null,
       file: null,
-      num: 0
+      num: 0,
+      hashProgress: 0,
     }
   },
    async mounted() {
@@ -65,6 +75,24 @@ export default {
     },
 
    async uploadFile() {
+     // 判断图片格式
+    //  const ret = await this.isImg(this.file)
+    //  console.log(ret)
+
+    //  if( !ret ) {
+    //    this.$alert('不是图片格式')
+    //    return
+    //  }
+
+    // web Worker
+
+    const chunks = this.createChunk(this.file)
+    console.log('chunks------->', chunks)
+
+    const hash = await this.hashWorker(chunks);
+
+     
+    return false
       const form = new FormData()
       form.append('name', 'file')
       form.append('file', this.file)
@@ -78,6 +106,95 @@ export default {
       })
 
       console.log(res, '<====res')
+    },
+
+    async hashWorker(chunks) {
+      return new Promise((resolve, reject) => {
+
+        const worker = new Worker('/hashWorker.js')
+        worker.postMessage({
+          chunks
+        })
+
+        worker.onmessage = (e) => {
+          const { progress, hash } = e.data
+
+          console.log( progress, hash , '<---------worker.onmessage')
+
+          this.hashProgress = Number(progress.toFixed(2))
+
+          if(hash) {
+            resolve(hash)
+          }
+
+          // worker.terminate()
+        }
+
+    })
+
+    },
+
+    // 把文件 切片 放到数组里
+    createChunk(file, size = CHUNK_SIZE) {
+      const chunks = []
+      let cur = 0
+
+      while(cur < file.size) {
+        chunks.push({
+          index: cur,
+          file: file.slice(cur, cur + size)
+        })
+
+        
+        cur += size
+      }
+
+      return chunks
+    },
+    // 判断是不是图片格式
+    async isImg(file) {
+      return await this.isgif(file) || await this.ispng(file) || await this.isjpg(file)
+    },
+    async isgif(file) {
+      // '47 49 46 38 37 61'  "47 49 46 38 39 61"
+      //  G  I  F  8  9(7) a
+      let str = file.slice(0, 6)
+      const res = await this.blobToString(str)
+      const isgif = (res === '47 49 46 38 37 61') || (res === '47 49 46 38 39 61')
+      return isgif
+    },
+    async ispng(file) {
+      // '89 50 4E 47 0D 0A 1A 0A"
+      //  G  I  F  8  9(7) a
+      let str = file.slice(0, 8)
+      const res = await this.blobToString(str)
+      const ispng = (res === '89 50 4E 47 0D 0A 1A 0A') 
+      return ispng
+    },
+    async isjpg(file) {
+      // 头FF D8   尾FF D9
+      //  G  I  F  8  9(7) a
+      let str1 = file.slice(0, 2)
+      let str2 = file.slice(-2, file.size)
+      const res1 = await this.blobToString(str1)
+      const res2 = await this.blobToString(str2)
+      const isjpg = (res1 === 'FF D8') || (res2 === 'FF D9')
+      return isjpg
+    },
+    blobToString(blob) {
+      return new Promise((rsolve, reject) => {
+        const render = new FileReader()
+        render.readAsBinaryString(blob)
+        render.onload = function(e){
+          const ret = e.target.result.split('')
+                       .map(v => v.charCodeAt())
+                       .map(v => v.toString(16))
+                       .join( ' ')
+          console.log("--->",ret)
+          
+          rsolve(ret)    
+        }
+      })
     }
   }
 }
