@@ -29,28 +29,7 @@
         :text-inside="true"
         :percentage="hashProgress1"
       />
-
- <p>方块进度条</p>
-    <div class="cube-container" :style="{width: cubeWidth + 'px' }">
-      <div class="cube" v-for="i in chunks" :key="i.name">
-        <div
-          :class="{
-            'uploading': i.progress < 100 && i.progress > 0,
-            'success': i.progress == 100,
-            'error': i.progress < 0
-          }"
-        >
-          <i v-if="i.progress < 100 && i.progress > 0" class="el-icon-loading"> </i>
-          <div v-else>{{i.index}}</div>
-        </div>
-
-      </div>
-
     </div>
-    <!-- <pre>{{ chunks|json }}</pre> -->
-    </div>
-
-  
   </div>
 </template>
 
@@ -58,28 +37,14 @@
 import sparkND5 from 'spark-md5'
 const CHUNK_SIZE = 0.5 * 1024 * 1024
 export default {
+
   data () {
     return {
       form: null,
       file: null,
       num: 0,
-      chunks: [],
       hashProgress: 0,
       hashProgress1: 0,
-    }
-  },
-  computed: {
-    cubeWidth() {
-      // 长度的平方根 ，再向上取整 乘以 每块的宽度
-      return Math.ceil(Math.sqrt(this.chunks.length)) * 30
-    },
-    uploadProgress() {
-      if( !this.file || this.chunks.length) {
-        return 0
-      }
-      const loaded = this.chunks.map(i => i.chunk.size * i.progress)
-                                .reduce((acc, cur) => acc*cur, 0)
-      return (loaded * 100 / this.file.size).toFixed(2)
     }
   },
   async mounted () {
@@ -128,93 +93,37 @@ export default {
       //  }
 
       // web Worker
+
       const chunks = this.createChunk(this.file)
-      const hash = await this.hashWorker(chunks)
       console.log('chunks------->', chunks)
+      const hash = await this.hashWorker(chunks)
       console.log('hash--------->', hash)
 
 
       // 使用时间切片方式
-      // const hash1 = await this.hashIdle(chunks)
-      // console.log('hash1--------->', hash1)
+      const hash1 = await this.hashIdle(chunks)
+      console.log('hash1--------->', hash1)
 
 
       // 抽样hash  布隆过滤器 损失一定精度换取效率
-      // const hash3 = await this.hashSimple()
-      //  console.log('hash3--------->', hash3)
+      // this.hashSimple()
 
+      return false
+      const form = new FormData()
+      form.append('name', 'file')
+      form.append('file', this.file)
 
-      // 切片上传
-      this.chunks = chunks.map((chunk, index) => {
-        const name = hash + '-' + index
-        return {
-          hash, name, index, chunk: chunk.file, progress: 0
+      console.log('form----->', form)
+      const res = await this.$http.post('/uploadFile', form, {
+        onUploadProgress: (progress) => { // 实现进度条
+          console.log(progress)
+          this.num = Number(((progress.loaded / progress.total) * 100).toFixed(2))
         }
       })
-
-    // 切片方式提交
-    this.uploadChunks()
-    this.mergeFile(hash)
-      
-
-    // 原来的方式提交
-    //  this.submitFormData()
+      console.log(res, '<====res')
     },
-
-    async mergeFile(hash) {
-      this.$http.post('/mergeFile', {
-        ext: this.file.name.split('.').pop(),  // 传到后端 后缀名
-        size: CHUNK_SIZE,
-        hash
-      })
-    },
-
-    uploadChunks() {
-      const requests = this.chunks.map((chunk, index) => {
-        const form = new FormData()
-        form.append('chunk', chunk.chunk)
-        form.append('name', chunk.name)
-        form.append('hash', chunk.hash)
-        form.append('index', chunk.index)
-
-        return form
-      })
-
-      requests.map((form, index) => {
-        return this.$http.post('/uploadChunks', form, {
-          onUploadProgress: (progress) => {
-            console.log(progress)
-            this.chunks[index].progress = Number(((progress.loaded / progress.total) * 100).toFixed(2))
-          }
-        })
-         
-      })
-      Promise.all(requests).then(res => {
-        console.log(res)
-      })
-    },
-
-    // async submitFormData() {
-    //   const form = new FormData()
-    //   form.append('name', 'file')
-    //   form.append('file', this.file)
-
-    //   console.log('form----->', form)
-    //   const res = await this.$http.post('/uploadFile', form, {
-    //     onUploadProgress: (progress) => { // 实现进度条
-    //       console.log(progress)
-    //       this.num = Number(((progress.loaded / progress.total) * 100).toFixed(2))
-    //     }
-    //   })
-    //   console.log(res, '<====res')
-    // },
 
     hashSimple() {
-      // 抽样hash：意思是不会把整个文件都算hash。只会随机从文件中抽取一部分 来算出hash值。
-      // 我们把文件按每个区块2M切割成一块一块的
-      // 我们只要头部的2M 和 尾部的2M
-      // 中间的区块 我们只要每个区块的头两个字节 中间两个字节 尾部两个字节
-      // 这样算出文件的hash值。
       return new Promise(resolve => {
         const spark = new sparkND5.ArrayBuffer()
         const render = new FileReader()
@@ -223,10 +132,10 @@ export default {
         const size = file.size
         const offset = 2 * 1024 * 1024
 
-        // 第一个2M区块, 最后一个2M区块 数据全要
+        // 第一个2M 最后一个 区块数据全要
         let chunks = [ file.slice(0, offset) ]
-        let cur = offset
 
+        let cur = offset
         while(cur < size) {
           if(cur + offset >= size) {
             // 最后一个区块
@@ -239,7 +148,9 @@ export default {
             chunks.push( file.slice(cur, cur + 2) )
             chunks.push( file.slice(mid, mid + 2) )
             chunks.push( file.slice(end-2, end) )
+
           }
+
           cur += offset
         }
 
@@ -336,7 +247,7 @@ export default {
 
       return chunks
     },
-
+    
     // 判断是不是图片格式
     async isImg (file) {
       return await this.isgif(file) || await this.ispng(file) || await this.isjpg(file)
@@ -391,21 +302,7 @@ export default {
     width 200px
     border 2px dashed #cccccc
     text-align center
-  .cube-container
-    .cube
-      width 28px
-      height 28px
-      line-height 12px
-      
-      border 1px solid #000
-      background #ccc
-      float left
-      >.success 
-        background green
-      >.error
-        background  red
-      >.uploading
-        background blue
+
 </style>
 
 <style>
