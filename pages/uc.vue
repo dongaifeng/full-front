@@ -39,6 +39,7 @@
             'success': i.progress == 100,
             'error': i.progress < 0
           }"
+          :style="{height: i.progress + '%'}"
         >
           <i v-if="i.progress < 100 && i.progress > 0" class="el-icon-loading"> </i>
           <div v-else>{{i.index}}</div>
@@ -130,8 +131,14 @@ export default {
       // web Worker
       const chunks = this.createChunk(this.file)
       const hash = await this.hashWorker(chunks)
-      console.log('chunks------->', chunks)
-      console.log('hash--------->', hash)
+      // console.log('chunks------->', chunks)
+      // console.log('hash--------->', hash)
+
+
+      // 请求后端 检查文件是否上传过  上传了多少
+      const { data:{ uploaded, uploadList } } = await this.$http.post('/checkFile',{hash, ext: this.file.name.split('.').pop()})
+      console.log(uploaded, uploadList)
+      if( uploaded) { return this.$message('已经上传了') }
 
 
       // 使用时间切片方式
@@ -148,13 +155,14 @@ export default {
       this.chunks = chunks.map((chunk, index) => {
         const name = hash + '-' + index
         return {
-          hash, name, index, chunk: chunk.file, progress: 0
+          hash, name, index, chunk: chunk.file,
+           progress: uploadList.indexOf(name) == -1 ? 0 : 100
         }
       })
 
     // 切片方式提交
-    this.uploadChunks()
-    this.mergeFile(hash)
+    this.uploadChunks(uploadList)
+    // this.mergeFile(hash)
       
 
     // 原来的方式提交
@@ -169,28 +177,73 @@ export default {
       })
     },
 
-    uploadChunks() {
-      const requests = this.chunks.map((chunk, index) => {
-        const form = new FormData()
-        form.append('chunk', chunk.chunk)
-        form.append('name', chunk.name)
-        form.append('hash', chunk.hash)
-        form.append('index', chunk.index)
+    uploadChunks(uploadList) {
+      const requests = this.chunks
+        .filter(chunk => uploadList.indexOf(chunk.name) == -1)
+        .map((chunk, index) => {
+          const form = new FormData()
+          form.append('chunk', chunk.chunk)
+          form.append('name', chunk.name)
+          form.append('hash', chunk.hash)
+          form.append('index', chunk.index)
 
-        return form
-      })
-
-      requests.map((form, index) => {
-        return this.$http.post('/uploadChunks', form, {
-          onUploadProgress: (progress) => {
-            console.log(progress)
-            this.chunks[index].progress = Number(((progress.loaded / progress.total) * 100).toFixed(2))
-          }
+          return {form, index: chunk.index}
         })
+
+      // requests.map((form, index) => {
+      //   return this.$http.post('/uploadChunks', form, {
+      //     onUploadProgress: (progress) => {
+      //       this.chunks[index].progress = Number(((progress.loaded / progress.total) * 100).toFixed(2))
+      //     }
+      //   })  
+      // })
+
+      // 一下子发很多请求 会卡掉浏览器
+      // 异步并发控制
+      this.sendRequest(requests)
+
+      // Promise.all(requests).then(res => {
+      //   console.log(res)
+      // })
+    },
+
+    async sendRequest(req, limit = 3) {
+      return new Promise(resolve => {
+        const len = req.length
+        let count = 0
+
+        const start = async () => {
          
-      })
-      Promise.all(requests).then(res => {
-        console.log(res)
+          const task = req.shift()
+
+          if(task) {
+            const {form , index} = task
+            await this.$http.post('/uploadChunks', form, {
+              onUploadProgress: (progress) => {
+                this.chunks[index].progress = Number(((progress.loaded / progress.total) * 100).toFixed(2))
+              }
+            })
+
+            
+            if(count == len-1) {
+              resolve()
+            } else {
+              count++
+              start()
+            }
+
+          }
+        }
+
+        // 这里的循环 会一下子执行 三个start  三个start 任务同时 开始工作 谁要执行完 就是requests 里面拿一个任务 接着执行，
+        //一直到requests 全部执行完 也就是count == requests.length
+        while(limit > 0) {
+          setTimeout(() => {
+            start()
+          }, 3000)
+          limit-=1
+        }
+
       })
     },
 
