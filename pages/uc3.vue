@@ -162,7 +162,7 @@ export default {
 
     // 切片方式提交
     this.uploadChunks(uploadList)
-    this.mergeFile(hash)
+    // this.mergeFile(hash)
       
 
     // 原来的方式提交
@@ -187,7 +187,7 @@ export default {
           form.append('hash', chunk.hash)
           form.append('index', chunk.index)
 
-          return {form, index: chunk.index, err: 0}
+          return {form, index: chunk.index}
         })
 
       // requests.map((form, index) => {
@@ -207,52 +207,29 @@ export default {
       // })
     },
 
-    // 异步并发控制 最多有三个请求同时进行 其中一个请求完了 就再拿出下一个请求
     async sendRequest(req, limit = 3) {
-      return new Promise((resolve, reject) => {
+      return new Promise(resolve => {
         const len = req.length
         let count = 0
-        let isStop = false
-
-        if(isStop) { return false }
 
         const start = async () => {
          
           const task = req.shift()
 
-          // tcp 慢启动 先上传一个初始模块 比如10kb  看看网速咋样 根据上传时间决定下一个上传 10kb  还是100kb 还是5kb  依次这样下去
           if(task) {
             const {form , index} = task
-            // 报错重传 用try catch
-            try {
-              await this.$http.post('/uploadChunks', form, {
-                onUploadProgress: (progress) => {
-                  this.chunks[index].progress = Number(((progress.loaded / progress.total) * 100).toFixed(2))
-                }
-              })
+            await this.$http.post('/uploadChunks', form, {
+              onUploadProgress: (progress) => {
+                this.chunks[index].progress = Number(((progress.loaded / progress.total) * 100).toFixed(2))
+              }
+            })
 
             
-              if(count == len-1) {
-                resolve()
-              } else {
-                count++
-                start()
-              }
-
-             // 当try里报错后 将当前任务对应的 chunk.progress 设为-1 飘红
-             // 在当前任务里面用err 记录这个任务报错次数 并把这个任务再加入到 任务队列里
-             // 如果报错次数大于3 用isStop 停止上传
-            } catch (error) {
-              console.log(error)
-              this.chunks[index].progress = -1
-              if(task.err < 3) {
-                // chunks.unshift(task0)
-                req.push(task)
-                task.err++
-              } else {
-                isStop = true
-                reject()
-              }
+            if(count == len-1) {
+              resolve()
+            } else {
+              count++
+              start()
             }
 
           }
@@ -263,7 +240,7 @@ export default {
         while(limit > 0) {
           setTimeout(() => {
             start()
-          }, 100)
+          }, 3000)
           limit-=1
         }
 
