@@ -1,37 +1,30 @@
 <template>
   <div class="container">
-    <div>
-      <Logo />
-      <h1 class="title">
-        full-front
-      </h1>
-      <div class="links">
-        <a
-          href="https://nuxtjs.org/"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="button--green"
-        >
-          Documentation
-        </a>
-        <a
-          href="https://github.com/nuxt/nuxt.js"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="button--grey"
-        >
-          GitHub
-        </a>
-      </div>
-    </div>
+    <VirtualList :listData="articles" :estimatedItemSize="300" v-slot="slotProps">
+   
+    </VirtualList>
   </div>
 </template>
 
 <script>
+import ArticleItem from '~/components/ArticleItem.vue'
+import VirtualList from '~/components/VirtualList.vue'
 export default {
+  components:{
+    ArticleItem,
+    VirtualList
+  },
+   data(){
+    return {
+      articles:[]
+    }
+  },
+
   async mounted() {
-    const res = this.$http.get('/user/info')
-    console.log(res)
+    const res = await this.$http.get('/article')
+    if(res.code==0){
+      this.articles = res.data
+    }
   }
 }
 </script>
@@ -47,16 +40,8 @@ export default {
 }
 
 .title {
-  font-family:
-    'Quicksand',
-    'Source Sans Pro',
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    Roboto,
-    'Helvetica Neue',
-    Arial,
-    sans-serif;
+  font-family: 'Quicksand', 'Source Sans Pro', -apple-system, BlinkMacSystemFont,
+    'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   display: block;
   font-weight: 300;
   font-size: 100px;
@@ -74,5 +59,12 @@ export default {
 
 .links {
   padding-top: 15px;
+}
+html{
+  height: 100%;
+}
+body{
+  height: 100%;
+  margin:0;
 }
 </style>

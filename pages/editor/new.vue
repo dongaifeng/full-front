@@ -82,8 +82,8 @@ export default {
         this.content = e.target.value
       }, 1000)
     },
-    submit() {
-
+    async submit(e) {
+      let res = await this.$http.post('/article/create', {content: this.content, compileContent: this.compileContent})
     }
   }
 }
